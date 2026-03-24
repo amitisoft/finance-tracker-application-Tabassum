@@ -20,6 +20,8 @@ import {
   useDashboardSummary,
   useDashboardTrend,
   useDashboardUpcomingRecurring,
+  useCashFlowForecast,
+  useHealthScore,
 } from '../hooks/useDashboard';
 import { formatCurrency } from '../utils/format';
 import DashboardTopBar from '../components/DashboardTopBar';
@@ -31,6 +33,17 @@ const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
 const ringPalette = ['#2563eb', '#0ea5e9', '#14b8a6', '#22c55e', '#f59e0b', '#ef4444'];
+const safeLevelCopy: Record<'healthy' | 'caution' | 'critical', string> = {
+  healthy: 'Healthy buffer',
+  caution: 'Caution',
+  critical: 'Critical',
+};
+
+const healthStatusCopy: Record<'healthy' | 'caution' | 'critical', string> = {
+  healthy: 'Stable',
+  caution: 'Needs attention',
+  critical: 'At risk',
+};
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -49,6 +62,25 @@ export default function DashboardPage() {
   const recurringList = recurringQuery.data ?? [];
   const budgetList = budgetQuery.data ?? [];
   const goalList = goalsQuery.data ?? [];
+  const forecastQuery = useCashFlowForecast();
+  const forecast = forecastQuery.data;
+  const forecastProjections = forecast?.dailyProjections ?? [];
+  const forecastWarnings = forecast?.riskWarnings ?? [];
+  const safeLevelLabel = forecast?.safeToSpend?.level
+    ? safeLevelCopy[forecast.safeToSpend.level]
+    : 'Caution';
+  const healthQuery = useHealthScore();
+  const healthScore = healthQuery.data;
+  const healthBreakdown = healthScore?.breakdown ?? [];
+  const healthSuggestions = healthScore?.suggestions ?? [];
+  const healthTone: 'healthy' | 'caution' | 'critical' = healthScore
+    ? healthScore.score >= 70
+      ? 'healthy'
+      : healthScore.score >= 45
+      ? 'caution'
+      : 'critical'
+    : 'healthy';
+  const healthStatusLabel = healthStatusCopy[healthTone];
 
   const totalSpent = useMemo(
     () => spendingData.reduce((sum, item) => sum + Number(item.amount ?? 0), 0),
@@ -173,6 +205,164 @@ export default function DashboardPage() {
             <strong>{item.value}</strong>
           </div>
         ))}
+      </div>
+
+      <div className="dashboard-health">
+        <section className="dashboard-widget health-widget">
+          <header className="widget-header">
+            <div>
+              <h3>Financial health</h3>
+              <p className="widget-copy">
+                A 0–100 score that blends buffer days, savings rate, and recurring coverage into one insight.
+              </p>
+            </div>
+            <span className="widget-subtitle">Health</span>
+          </header>
+
+          {healthQuery.isLoading && <div className="loading-pill">Assessing financial health...</div>}
+          {healthQuery.isError && (
+            <div className="feedback error">
+              {errorMessage(healthQuery.error, 'Unable to evaluate financial health')}
+            </div>
+          )}
+
+          {healthScore && (
+            <div className="health-body">
+              <div className="health-summary">
+                <div className={`health-score-ring level-${healthTone}`}>
+                  <strong>{healthScore.score}</strong>
+                  <span>out of 100</span>
+                </div>
+                <div className="health-copy">
+                  <p className="health-status">{healthStatusLabel}</p>
+                  <p className="muted-text">
+                    Buffer, savings, and recurring coverage are weighted equally to inform the overall score.
+                  </p>
+                </div>
+              </div>
+
+              <div className="health-breakdown">
+                {healthBreakdown.map((metric) => (
+                  <div key={metric.label} className="health-breakdown-row">
+                    <div>
+                      <strong>{metric.label}</strong>
+                      <p className="muted-text">{metric.detail}</p>
+                    </div>
+                    <div className="health-progress">
+                      <div className="health-progress-track">
+                        <div className="health-progress-fill" style={{ width: `${metric.score}%` }} />
+                      </div>
+                      <span className="health-progress-value">{metric.score}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="health-suggestions">
+                <h4>Suggestions</h4>
+                <ul>
+                  {healthSuggestions.length === 0 ? (
+                    <li>Keep building the habits that brought this score to life.</li>
+                  ) : (
+                    healthSuggestions.map((suggestion) => <li key={suggestion}>{suggestion}</li>)
+                  )}
+                </ul>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <div className="dashboard-forecast">
+        <section className="dashboard-widget forecast-widget">
+          <header className="widget-header">
+            <div>
+              <h3>Cash flow forecast</h3>
+              <p className="widget-copy">
+                Projected end-of-month balance, daily outlook, and risk cues to keep spending in check.
+              </p>
+            </div>
+            <span className="widget-subtitle">Forecast</span>
+          </header>
+
+          {forecastQuery.isLoading && <div className="loading-pill">Forecasting cash flow...</div>}
+          {forecastQuery.isError && (
+            <div className="feedback error">
+              {errorMessage(forecastQuery.error, 'Unable to build cash flow forecast')}
+            </div>
+          )}
+
+          {forecast && (
+            <div className="forecast-content">
+              <div className="forecast-summary-grid">
+                <article className="forecast-card">
+                  <span className="card-label">Projected end-of-month balance</span>
+                  <strong>{formatCurrency(forecast.projectedEndOfMonthBalance)}</strong>
+                  <p className="forecast-note">
+                    Monthly net {formatCurrency(forecast.projectedMonthlyNet)}
+                  </p>
+                </article>
+                <article className={`forecast-card safe-card safe-${forecast.safeToSpend.level}`}>
+                  <span className="card-label">Safe to spend</span>
+                  <strong>{formatCurrency(forecast.safeToSpend.amount)}</strong>
+                  <p className="forecast-note">{forecast.safeToSpend.message}</p>
+                  <span className={`safe-badge level-${forecast.safeToSpend.level}`}>
+                    {safeLevelLabel}
+                  </span>
+                </article>
+                <article className="forecast-card">
+                  <span className="card-label">Daily net pace</span>
+                  <strong>{formatCurrency(forecast.dailyNetAverage)}</strong>
+                  <p className="forecast-note">Average of recent days</p>
+                </article>
+              </div>
+
+              <div className="forecast-projections">
+                <h4>Daily projection</h4>
+                {forecastProjections.length === 0 ? (
+                  <div className="empty-mini muted-text">Not enough data for daily projections yet.</div>
+                ) : (
+                  <div className="daily-projection-grid">
+                    {forecastProjections.map((projection) => (
+                      <article key={projection.date} className="daily-projection-card">
+                        <span className="forecast-date">{formatDate(projection.date)}</span>
+                        <strong className={projection.netChange >= 0 ? 'positive' : 'negative'}>
+                          {formatCurrency(projection.netChange)}
+                        </strong>
+                        <div className="projection-row">
+                          <small>Income</small>
+                          <span>{formatCurrency(projection.projectedIncome)}</span>
+                        </div>
+                        <div className="projection-row">
+                          <small>Expense</small>
+                          <span>{formatCurrency(projection.projectedExpense)}</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="forecast-risk">
+                <h4>Risk warnings</h4>
+                {forecastWarnings.length === 0 ? (
+                  <p className="muted-text">No active warnings. Keep tracking to stay ahead.</p>
+                ) : (
+                  <div className="risk-badges">
+                    {forecastWarnings.map((warning) => (
+                      <span
+                        key={`${warning.message}-${warning.severity}`}
+                        className={`risk-badge severity-${warning.severity}`}
+                      >
+                        {warning.message}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
       </div>
 
       <div className="dashboard-main-grid">

@@ -6,16 +6,22 @@ import com.finance.tracker.dto.account.CreateAccountRequest;
 import com.finance.tracker.dto.account.UpdateAccountRequest;
 import com.finance.tracker.dto.transaction.CreateTransactionRequest;
 import com.finance.tracker.entity.Account;
+import com.finance.tracker.entity.AccountMember;
+import com.finance.tracker.entity.AccountRole;
+import com.finance.tracker.entity.User;
 import com.finance.tracker.exception.BadRequestException;
 import com.finance.tracker.exception.ResourceNotFoundException;
+import com.finance.tracker.repository.AccountMemberRepository;
 import com.finance.tracker.repository.AccountRepository;
 import com.finance.tracker.repository.TransactionRepository;
+import com.finance.tracker.repository.UserRepository;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -24,30 +30,35 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
     private final TransactionService transactionService;
+    private final AccountMemberRepository accountMemberRepository;
+    private final UserRepository userRepository;
 
     public AccountService(
         AccountRepository accountRepository,
         TransactionRepository transactionRepository,
-        TransactionService transactionService
+        TransactionService transactionService,
+        AccountMemberRepository accountMemberRepository,
+        UserRepository userRepository
     ) {
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
         this.transactionService = transactionService;
+        this.accountMemberRepository = accountMemberRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional(readOnly = true)
     public List<AccountResponse> getAll(Long userId) {
-        return accountRepository.findByUserIdOrderByNameAsc(userId)
-                .stream()
-                .map(AccountResponse::from)
+        return accountMemberRepository.findByUserId(userId).stream()
+                .map(member -> AccountResponse.from(member.getAccount(), member.getRole()))
+                .sorted(Comparator.comparing(AccountResponse::getName))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public AccountResponse getOne(Long userId, Long accountId) {
-        Account account = accountRepository.findByIdAndUserId(accountId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
-        return AccountResponse.from(account);
+        AccountMember membership = requireMembership(accountId, userId);
+        return AccountResponse.from(membership.getAccount(), membership.getRole());
     }
 
     @Transactional
@@ -66,13 +77,16 @@ public class AccountService {
         account.setInstitutionName(blankToNull(request.getInstitutionName()));
         account.setLastUpdatedAt(OffsetDateTime.now());
 
-        return AccountResponse.from(accountRepository.save(account));
+        Account saved = accountRepository.save(account);
+        attachOwnerMember(saved, userId);
+        return AccountResponse.from(saved, AccountRole.OWNER);
     }
 
     @Transactional
     public AccountResponse update(Long userId, Long accountId, UpdateAccountRequest request) {
-        Account account = accountRepository.findByIdAndUserId(accountId, userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+        AccountMember membership = requireMembership(accountId, userId);
+        ensureOwner(membership);
+        Account account = membership.getAccount();
         boolean balanceChanged = account.getCurrentBalance().compareTo(request.getCurrentBalance()) != 0;
         if (balanceChanged && transactionRepository.existsByAccountOrTransferAccount(account, account)) {
             throw new BadRequestException(
@@ -89,7 +103,8 @@ public class AccountService {
         account.setInstitutionName(blankToNull(request.getInstitutionName()));
         account.setLastUpdatedAt(OffsetDateTime.now());
 
-        return AccountResponse.from(accountRepository.save(account));
+        Account updated = accountRepository.save(account);
+        return AccountResponse.from(updated, membership.getRole());
     }
 
     @Transactional
@@ -102,10 +117,12 @@ public class AccountService {
             throw new BadRequestException("Transfer amount must be greater than 0");
         }
 
-        Account from = accountRepository.findByIdAndUserId(request.getFromAccountId(), userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
-        Account to = accountRepository.findByIdAndUserId(request.getToAccountId(), userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+        AccountMember fromMember = requireMembership(request.getFromAccountId(), userId);
+        ensureEditorOrOwner(fromMember);
+        AccountMember toMember = requireMembership(request.getToAccountId(), userId);
+        ensureEditorOrOwner(toMember);
+        Account from = fromMember.getAccount();
+        Account to = toMember.getAccount();
 
         transactionService.createTransaction(new CreateTransactionRequest(
             from.getId(),
@@ -137,5 +154,32 @@ public class AccountService {
             return note.trim();
         }
         return "Transfer from " + fromName + " to " + toName;
+    }
+
+    private void attachOwnerMember(Account account, Long userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        AccountMember member = new AccountMember();
+        member.setAccount(account);
+        member.setUser(user);
+        member.setRole(AccountRole.OWNER);
+        accountMemberRepository.save(member);
+    }
+
+    private AccountMember requireMembership(Long accountId, Long userId) {
+        return accountMemberRepository.findByAccountIdAndUserId(accountId, userId)
+            .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+    }
+
+    private void ensureOwner(AccountMember membership) {
+        if (membership.getRole() != AccountRole.OWNER) {
+            throw new BadRequestException("Owner role is required for this action");
+        }
+    }
+
+    private void ensureEditorOrOwner(AccountMember membership) {
+        if (membership.getRole() != AccountRole.OWNER && membership.getRole() != AccountRole.EDITOR) {
+            throw new BadRequestException("Editor or owner role is required for this action");
+        }
     }
 }

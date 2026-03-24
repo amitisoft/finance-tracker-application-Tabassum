@@ -17,8 +17,10 @@ import {
   RecurringPage,
   RegisterPage,
   ReportsPage,
+  InsightsPage,
   ResetPasswordPage,
   SettingsPage,
+  RulesPage,
   TransactionsPage,
 } from '../pages';
 
@@ -81,6 +83,8 @@ export default function App() {
                 <Route path="goals" element={<GoalsPage />} />
                 <Route path="recurring" element={<RecurringPage />} />
                 <Route path="reports" element={<ReportsPage />} />
+                <Route path="insights" element={<InsightsPage />} />
+                <Route path="rules" element={<RulesPage />} />
                 <Route path="onboarding" element={<OnboardingPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="transactions/new" element={<AddTransactionPage />} />

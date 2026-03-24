@@ -4,10 +4,14 @@ import com.finance.tracker.dto.account.AccountResponse;
 import com.finance.tracker.dto.account.AccountTransferRequest;
 import com.finance.tracker.dto.account.CreateAccountRequest;
 import com.finance.tracker.dto.account.UpdateAccountRequest;
+import com.finance.tracker.dto.account.AccountMemberResponse;
+import com.finance.tracker.dto.account.InviteAccountMemberRequest;
+import com.finance.tracker.dto.account.UpdateAccountMemberRequest;
 import com.finance.tracker.entity.User;
 import com.finance.tracker.exception.BadRequestException;
 import com.finance.tracker.repository.UserRepository;
 import com.finance.tracker.security.CurrentUserProvider;
+import com.finance.tracker.service.AccountMembershipService;
 import com.finance.tracker.service.AccountService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -23,15 +27,18 @@ public class AccountController {
     private final AccountService accountService;
     private final CurrentUserProvider currentUserProvider;
     private final UserRepository userRepository;
+    private final AccountMembershipService membershipService;
 
     public AccountController(
-            AccountService accountService,
-            CurrentUserProvider currentUserProvider,
-            UserRepository userRepository
+        AccountService accountService,
+        CurrentUserProvider currentUserProvider,
+        UserRepository userRepository,
+        AccountMembershipService membershipService
     ) {
         this.accountService = accountService;
         this.currentUserProvider = currentUserProvider;
         this.userRepository = userRepository;
+        this.membershipService = membershipService;
     }
 
     @GetMapping
@@ -66,6 +73,28 @@ public class AccountController {
     ) {
         accountService.transfer(currentUserId(), request);
         return Map.of("message", "Transfer completed successfully");
+    }
+
+    @PostMapping("/{id}/invite")
+    public AccountMemberResponse invite(
+        @PathVariable Long id,
+        @Valid @RequestBody InviteAccountMemberRequest request
+    ) {
+        return membershipService.invite(id, request);
+    }
+
+    @GetMapping("/{id}/members")
+    public List<AccountMemberResponse> members(@PathVariable Long id) {
+        return membershipService.listMembers(id);
+    }
+
+    @PutMapping("/{id}/members/{userId}")
+    public AccountMemberResponse updateMember(
+        @PathVariable Long id,
+        @PathVariable Long userId,
+        @Valid @RequestBody UpdateAccountMemberRequest request
+    ) {
+        return membershipService.updateMemberRole(id, userId, request);
     }
 
     private Long currentUserId() {

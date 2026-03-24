@@ -509,3 +509,131 @@
   --shadow-sm: 0 14px 34px rgba(0, 0, 0, 0.6);
   --shadow-md: 0 26px 48px rgba(0, 0, 0, 0.7);
 }
+
+.account-sharing-row {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.sharing-label {
+  display: block;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.role-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #fff;
+}
+
+.role-badge--pill {
+  font-size: 0.75rem;
+}
+
+.role-badge--inline {
+  font-size: 0.7rem;
+}
+
+.role-badge--owner {
+  background: #2563eb;
+}
+
+.role-badge--editor {
+  background: #b45309;
+}
+
+.role-badge--viewer {
+  background: #047857;
+}
+
+.sharing-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sharing-headline {
+  font-size: 0.95rem;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sharing-hint {
+  color: var(--text-muted);
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.sharing-state {
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.sharing-state.error {
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(224, 63, 94, 0.12);
+  color: #b91c1c;
+}
+
+.sharing-members {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sharing-member-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.sharing-member-row strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.sharing-member-row p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.sharing-member-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sharing-member-actions select {
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+}
+
+.share-invite-form select {
+  width: 100%;
+}

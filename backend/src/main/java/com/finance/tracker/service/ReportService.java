@@ -3,7 +3,12 @@ package com.finance.tracker.service;
 import com.finance.tracker.dto.dashboard.TrendPointDto;
 import com.finance.tracker.dto.reports.AccountBalanceReport;
 import com.finance.tracker.dto.reports.CategorySpendReport;
+import com.finance.tracker.dto.reports.CategoryTrendDto;
+import com.finance.tracker.dto.reports.CategoryTrendPointDto;
+import com.finance.tracker.dto.reports.MonthlyTrendDto;
+import com.finance.tracker.dto.reports.NetWorthPointDto;
 import com.finance.tracker.dto.reports.ReportFilter;
+import com.finance.tracker.dto.reports.ReportsTrendDto;
 import com.finance.tracker.entity.Account;
 import com.finance.tracker.entity.Category;
 import com.finance.tracker.entity.Transaction;
@@ -24,19 +29,29 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ReportService {
+    private static final int MAX_TREND_MONTHS = 12;
+    private static final int DEFAULT_TREND_MONTHS = 6;
+    private static final DateTimeFormatter MONTH_LABEL_FORMATTER = DateTimeFormatter.ofPattern("MMM yyyy");
+
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
@@ -76,6 +91,43 @@ public class ReportService {
                 );
             })
             .collect(Collectors.toList());
+    }
+
+    public ReportsTrendDto trends(ReportFilter filter) {
+        User user = currentUser();
+        OffsetDateTime start = determineTrendStart(filter);
+        OffsetDateTime end = determineTrendEnd(filter);
+        validateRange(start, end);
+        validateOwnership(user, filter);
+        List<Transaction> transactions = loadTransactions(user, filter, start, end);
+        MonthlyWindow window = buildMonthlyWindow(start, end, transactions);
+        List<MonthlyTrendDto> monthlyAggregates = buildMonthlyAggregates(window);
+        List<CategoryTrendDto> categoryTrends = buildCategoryTrends(transactions, window);
+        return new ReportsTrendDto(List.copyOf(monthlyAggregates), List.copyOf(categoryTrends));
+    }
+
+    public List<NetWorthPointDto> netWorthTrend(ReportFilter filter) {
+        User user = currentUser();
+        OffsetDateTime start = determineTrendStart(filter);
+        OffsetDateTime end = determineTrendEnd(filter);
+        validateRange(start, end);
+        validateOwnership(user, filter);
+        List<Transaction> transactions = loadTransactions(user, filter, start, end);
+        MonthlyWindow window = buildMonthlyWindow(start, end, transactions);
+        BigDecimal runningBalance = accountRepository.findByUser(user).stream()
+            .map(account -> account.getCurrentBalance() != null ? account.getCurrentBalance() : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<NetWorthPointDto> points = new ArrayList<>();
+        List<YearMonth> months = window.months();
+        for (int index = months.size() - 1; index >= 0; index--) {
+            YearMonth month = months.get(index);
+            MonthlyMetrics metrics = window.metrics().get(month);
+            points.add(new NetWorthPointDto(month.toString(), month.format(MONTH_LABEL_FORMATTER), runningBalance));
+            BigDecimal netChange = metrics != null ? metrics.income.subtract(metrics.expense) : BigDecimal.ZERO;
+            runningBalance = runningBalance.subtract(netChange);
+        }
+        Collections.reverse(points);
+        return points;
     }
 
     public List<TrendPointDto> incomeVsExpense(ReportFilter filter) {
@@ -155,6 +207,104 @@ public class ReportService {
             builder.append(escape(tx.getPaymentMethod())).append('\n');
         }
         return builder.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private List<MonthlyTrendDto> buildMonthlyAggregates(MonthlyWindow window) {
+        return window.months().stream()
+            .map(month -> {
+                MonthlyMetrics metrics = window.metrics().get(month);
+                BigDecimal income = metrics != null ? metrics.income : BigDecimal.ZERO;
+                BigDecimal expense = metrics != null ? metrics.expense : BigDecimal.ZERO;
+                BigDecimal savings = income.subtract(expense);
+                BigDecimal savingsRate = income.compareTo(BigDecimal.ZERO) == 0
+                    ? BigDecimal.ZERO
+                    : savings.divide(income, 4, RoundingMode.HALF_UP);
+                return new MonthlyTrendDto(
+                    month.toString(),
+                    month.format(MONTH_LABEL_FORMATTER),
+                    income,
+                    expense,
+                    savings,
+                    savingsRate
+                );
+            })
+            .collect(Collectors.toList());
+    }
+
+    private List<CategoryTrendDto> buildCategoryTrends(List<Transaction> transactions, MonthlyWindow window) {
+        List<YearMonth> months = window.months();
+        Map<YearMonth, Integer> monthIndexes = new HashMap<>();
+        for (int i = 0; i < months.size(); i++) {
+            monthIndexes.put(months.get(i), i);
+        }
+        Map<Long, CategoryTrendAccumulator> accumulators = new LinkedHashMap<>();
+        for (Transaction tx : transactions) {
+            if (tx.getType() != Transaction.TransactionType.EXPENSE || tx.getCategory() == null) {
+                continue;
+            }
+            Integer index = monthIndexes.get(YearMonth.from(tx.getTransactionDate()));
+            if (index == null) {
+                continue;
+            }
+            CategoryTrendAccumulator accumulator = accumulators.computeIfAbsent(
+                tx.getCategory().getId(),
+                id -> new CategoryTrendAccumulator(tx.getCategory(), months.size())
+            );
+            accumulator.addAmount(index, tx.getAmount());
+        }
+        return accumulators.values().stream()
+            .map(accumulator -> new CategoryTrendDto(
+                accumulator.category.getId(),
+                accumulator.category.getName(),
+                accumulator.category.getColor(),
+                IntStream.range(0, months.size())
+                    .mapToObj(i -> new CategoryTrendPointDto(
+                        months.get(i).toString(),
+                        months.get(i).format(MONTH_LABEL_FORMATTER),
+                        accumulator.amounts[i]
+                    ))
+                    .collect(Collectors.toList())
+            ))
+            .collect(Collectors.toList());
+    }
+
+    private MonthlyWindow buildMonthlyWindow(OffsetDateTime start, OffsetDateTime end, List<Transaction> transactions) {
+        List<YearMonth> months = new ArrayList<>();
+        YearMonth current = YearMonth.from(start);
+        YearMonth last = YearMonth.from(end);
+        while (!current.isAfter(last) && months.size() < MAX_TREND_MONTHS) {
+            months.add(current);
+            current = current.plusMonths(1);
+        }
+        Map<YearMonth, MonthlyMetrics> metrics = new LinkedHashMap<>();
+        for (YearMonth month : months) {
+            metrics.put(month, new MonthlyMetrics());
+        }
+        for (Transaction tx : transactions) {
+            YearMonth month = YearMonth.from(tx.getTransactionDate());
+            MonthlyMetrics accumulator = metrics.get(month);
+            if (accumulator == null) {
+                continue;
+            }
+            if (tx.getType() == Transaction.TransactionType.INCOME) {
+                accumulator.income = accumulator.income.add(tx.getAmount());
+            } else if (tx.getType() == Transaction.TransactionType.EXPENSE) {
+                accumulator.expense = accumulator.expense.add(tx.getAmount());
+            }
+        }
+        return new MonthlyWindow(List.copyOf(months), metrics);
+    }
+
+    private OffsetDateTime determineTrendStart(ReportFilter filter) {
+        if (filter.startDate() != null) {
+            return filter.startDate().withDayOfMonth(1).with(LocalTime.MIN);
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        return now.minusMonths(DEFAULT_TREND_MONTHS - 1).withDayOfMonth(1).with(LocalTime.MIN);
+    }
+
+    private OffsetDateTime determineTrendEnd(ReportFilter filter) {
+        return filter.endDate() != null ? filter.endDate() : OffsetDateTime.now();
     }
 
     private List<Transaction> loadTransactions(User user, ReportFilter filter, OffsetDateTime start, OffsetDateTime end) {
@@ -249,6 +399,29 @@ public class ReportService {
             return "\"" + escaped + "\"";
         }
         return escaped;
+    }
+
+    private static final class MonthlyMetrics {
+        private BigDecimal income = BigDecimal.ZERO;
+        private BigDecimal expense = BigDecimal.ZERO;
+    }
+
+    private static final class CategoryTrendAccumulator {
+        private final Category category;
+        private final BigDecimal[] amounts;
+
+        private CategoryTrendAccumulator(Category category, int months) {
+            this.category = category;
+            this.amounts = new BigDecimal[months];
+            Arrays.fill(this.amounts, BigDecimal.ZERO);
+        }
+
+        void addAmount(int index, BigDecimal delta) {
+            amounts[index] = amounts[index].add(delta);
+        }
+    }
+
+    private record MonthlyWindow(List<YearMonth> months, Map<YearMonth, MonthlyMetrics> metrics) {
     }
 
     private static final class TrendAccumulator {

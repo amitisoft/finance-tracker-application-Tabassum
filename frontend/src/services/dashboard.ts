@@ -1,5 +1,14 @@
 import { apiClient } from './api';
-import type { DashboardSummary, CategorySpending, TrendPoint, RecurringItem, BudgetProgress, GoalProgress } from '../types/dashboard';
+import type {
+  DashboardSummary,
+  CategorySpending,
+  TrendPoint,
+  RecurringItem,
+  BudgetProgress,
+  GoalProgress,
+  FinancialHealthScore,
+  HealthMetric,
+} from '../types/dashboard';
 import type { TransactionDto } from '../types/transaction';
 
 const endpoint = '/dashboard';
@@ -72,6 +81,19 @@ type DashboardRecentTransactionApi = {
   recurring_transaction_id?: number | null;
 };
 
+type HealthMetricApi = {
+  label: string;
+  detail: string;
+  value: string | number;
+  score: number;
+};
+
+type FinancialHealthApi = {
+  score: number;
+  breakdown: HealthMetricApi[];
+  suggestions: string[] | null;
+};
+
 const normalizeSummary = (summary: DashboardSummaryApi): DashboardSummary => ({
   currentMonthIncome: summary.current_month_income,
   currentMonthExpense: summary.current_month_expense,
@@ -134,6 +156,19 @@ const normalizeRecentTransaction = (item: DashboardRecentTransactionApi): Transa
   recurringTransactionId: item.recurring_transaction_id ?? undefined,
 });
 
+const normalizeHealthMetric = (metric: HealthMetricApi): HealthMetric => ({
+  label: metric.label,
+  detail: metric.detail,
+  value: Number(metric.value ?? 0),
+  score: metric.score,
+});
+
+const normalizeHealthScore = (payload: FinancialHealthApi): FinancialHealthScore => ({
+  score: payload.score,
+  breakdown: (payload.breakdown ?? []).map(normalizeHealthMetric),
+  suggestions: payload.suggestions ?? [],
+});
+
 export const dashboardApi = {
   summary: () => apiClient.get<DashboardSummaryApi>(`${endpoint}/summary`).then((res) => normalizeSummary(res.data)),
   spendingByCategory: () =>
@@ -147,4 +182,5 @@ export const dashboardApi = {
   budgetProgress: () =>
     apiClient.get<BudgetProgressApi[]>(`${endpoint}/budget-progress`).then((res) => res.data.map(normalizeBudget)),
   goalsSummary: () => apiClient.get<GoalProgressApi[]>(`${endpoint}/goals-summary`).then((res) => res.data.map(normalizeGoal)),
+  healthScore: () => apiClient.get<FinancialHealthApi>(`${endpoint}/health`).then((res) => normalizeHealthScore(res.data)),
 };

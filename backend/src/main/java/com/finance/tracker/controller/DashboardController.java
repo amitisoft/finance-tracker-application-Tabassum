@@ -1,8 +1,10 @@
 package com.finance.tracker.controller;
 
 import com.finance.tracker.dto.dashboard.BudgetProgressDto;
+import com.finance.tracker.dto.dashboard.CashFlowForecastDto;
 import com.finance.tracker.dto.dashboard.CategorySpendingDto;
 import com.finance.tracker.dto.dashboard.DashboardSummaryDto;
+import com.finance.tracker.dto.dashboard.FinancialHealthScoreDto;
 import com.finance.tracker.dto.dashboard.GoalProgressDto;
 import com.finance.tracker.dto.dashboard.RecurringItemDto;
 import com.finance.tracker.dto.dashboard.TrendPointDto;
@@ -55,5 +57,15 @@ public class DashboardController {
     @GetMapping("/goals-summary")
     public ResponseEntity<List<GoalProgressDto>> goalsSummary() {
         return ResponseEntity.ok(dashboardService.getGoalsSummary());
+    }
+
+    @GetMapping("/forecast")
+    public ResponseEntity<CashFlowForecastDto> forecast() {
+        return ResponseEntity.ok(dashboardService.getCashFlowForecast());
+    }
+
+    @GetMapping("/health")
+    public ResponseEntity<FinancialHealthScoreDto> health() {
+        return ResponseEntity.ok(dashboardService.getFinancialHealthScore());
     }
 }

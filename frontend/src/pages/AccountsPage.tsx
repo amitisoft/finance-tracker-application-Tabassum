@@ -6,7 +6,8 @@ import { z } from 'zod';
 import Modal from '../components/common/Modal';
 import { useAccountsModalStore } from '../features/accounts/accountsModalStore';
 import { useAccountsQuery, useTransfer, useUpdateAccount, useDeleteAccount } from '../hooks/useAccounts';
-import type { TransferPayload, UpdateAccountPayload } from '../types/account';
+import { useAccountMembers, useInviteAccountMember, useUpdateAccountMemberRole } from '../hooks/useAccountMembers';
+import type { AccountRole, TransferPayload, UpdateAccountPayload } from '../types/account';
 import { getErrorMessage } from '../utils/errors';
 import './AccountsPage.css';
 
@@ -35,6 +36,13 @@ const transferSchema = z
     message: 'Destination account must differ from source',
     path: ['toAccountId'],
   });
+
+const inviteSchema = z.object({
+  email: z.string().email('Enter a valid email'),
+  role: z.enum(['OWNER', 'EDITOR', 'VIEWER']),
+});
+
+type InviteFormValues = z.infer<typeof inviteSchema>;
 
 type Feedback = {
   message: string;
@@ -84,6 +92,23 @@ const formatBalanceSummary = (accounts: { currency: string; currentBalance: numb
   };
 };
 
+const ROLE_LABELS: Record<AccountRole, string> = {
+  OWNER: 'Owner',
+  EDITOR: 'Editor',
+  VIEWER: 'Viewer',
+};
+
+type RoleBadgeProps = {
+  role: AccountRole;
+  variant?: 'pill' | 'inline';
+};
+
+const RoleBadge = ({ role, variant = 'pill' }: RoleBadgeProps) => (
+  <span className={`role-badge role-badge--${role.toLowerCase()} role-badge--${variant}`}>
+    {ROLE_LABELS[role]}
+  </span>
+);
+
 export default function AccountsPage() {
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useAccountsQuery();
@@ -94,6 +119,8 @@ export default function AccountsPage() {
   const deleteAccount = useDeleteAccount();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [deleteFeedback, setDeleteFeedback] = useState<Feedback | null>(null);
+  const [sharingAccountId, setSharingAccountId] = useState<number | null>(null);
+  const [sharingFeedback, setSharingFeedback] = useState<Feedback | null>(null);
 
   const accounts = data ?? [];
   const hasAccounts = accounts.length > 0;
@@ -138,6 +165,28 @@ export default function AccountsPage() {
       amount: 0,
     },
   });
+
+  const {
+    register: registerInvite,
+    handleSubmit: handleInviteSubmit,
+    formState: { errors: inviteErrors, isSubmitting: isInviting },
+    reset: resetInvite,
+  } = useForm<InviteFormValues>({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: {
+      email: '',
+      role: 'VIEWER',
+    },
+  });
+
+  const {
+    data: sharingMembers,
+    isLoading: sharingMembersLoading,
+    isError: sharingMembersError,
+    refetch: refetchSharingMembers,
+  } = useAccountMembers(sharingAccountId ?? undefined);
+  const inviteMember = useInviteAccountMember();
+  const updateMemberRole = useUpdateAccountMemberRole();
 
   useEffect(() => {
     if (!feedback) {
@@ -190,6 +239,63 @@ export default function AccountsPage() {
       institutionName: editingAccount.institutionName ?? '',
     });
   }, [editingAccount, resetUpdate]);
+
+  const sharingAccount = accounts.find((account) => account.id === sharingAccountId);
+  const currentSharingMember = sharingMembers?.find((member) => member.currentUser);
+  const sharingRole = currentSharingMember?.role ?? sharingAccount?.currentUserRole ?? 'OWNER';
+  const canManageSharing = sharingRole === 'OWNER';
+
+  const openSharing = (accountId: number) => {
+    setSharingAccountId(accountId);
+    setSharingFeedback(null);
+    resetInvite();
+  };
+
+  const closeSharing = () => {
+    setSharingAccountId(null);
+    setSharingFeedback(null);
+    resetInvite();
+  };
+
+  const onInviteMember = handleInviteSubmit(async (values) => {
+    if (!sharingAccountId) {
+      return;
+    }
+    try {
+      await inviteMember.mutateAsync({
+        accountId: sharingAccountId,
+        payload: values,
+      });
+      setSharingFeedback({ message: 'Member invited', intent: 'success' });
+      resetInvite();
+      refetchSharingMembers();
+    } catch (apiError) {
+      setSharingFeedback({
+        message: getErrorMessage(apiError, 'Unable to invite member'),
+        intent: 'error',
+      });
+    }
+  });
+
+  const handleRoleChange = async (memberId: number, role: AccountRole) => {
+    if (!sharingAccountId || !canManageSharing) {
+      return;
+    }
+    try {
+      await updateMemberRole.mutateAsync({
+        accountId: sharingAccountId,
+        userId: memberId,
+        payload: { role },
+      });
+      setSharingFeedback({ message: 'Role updated', intent: 'success' });
+      refetchSharingMembers();
+    } catch (apiError) {
+      setSharingFeedback({
+        message: getErrorMessage(apiError, 'Unable to update role'),
+        intent: 'error',
+      });
+    }
+  };
 
   const onUpdateAccount = handleUpdate(async (values) => {
     if (!editingAccount) {
@@ -325,53 +431,72 @@ export default function AccountsPage() {
         </div>
       ) : (
         <div className="accounts-list">
-          {accounts.map((account) => (
-            <article key={account.id} className="account-card">
-              <div className="account-card-top">
-                <div>
-                  <strong>{account.name}</strong>
-                  <p className="account-subtitle">
-                    {formatAccountType(account.type)} -{' '}
-                    {account.institutionName?.trim() || 'No institution selected'}
-                  </p>
-                  <small className="account-updated">
-                    Updated {new Date(account.lastUpdatedAt).toLocaleDateString()}
-                  </small>
+          {accounts.map((account) => {
+            const accountRole: AccountRole = account.currentUserRole ?? 'OWNER';
+            const isOwner = accountRole === 'OWNER';
+            const canTransferAccount = accountRole !== 'VIEWER';
+            return (
+              <article key={account.id} className="account-card">
+                <div className="account-card-top">
+                  <div>
+                    <strong>{account.name}</strong>
+                    <p className="account-subtitle">
+                      {formatAccountType(account.type)} -{' '}
+                      {account.institutionName?.trim() || 'No institution selected'}
+                    </p>
+                    <small className="account-updated">
+                      Updated {new Date(account.lastUpdatedAt).toLocaleDateString()}
+                    </small>
+                  </div>
+
+                  <span className="account-type-badge">{formatAccountType(account.type)}</span>
                 </div>
 
-                <span className="account-type-badge">{formatAccountType(account.type)}</span>
-              </div>
+                <div className="account-balance-row">
+                  <div>
+                    <span className="balance-label">Current balance</span>
+                    <div className="account-balance">
+                      {formatMoney(account.currentBalance, account.currency)}
+                    </div>
+                  </div>
 
-              <div className="account-balance-row">
-                <div>
-                  <span className="balance-label">Current balance</span>
-                  <div className="account-balance">
-                    {formatMoney(account.currentBalance, account.currency)}
+                  <div className="account-actions">
+                    <button
+                      type="button"
+                      className="ghost-btn account-mini-btn"
+                      onClick={() => openEdit(account.id)}
+                      disabled={!isOwner}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      type="button"
+                      className="ghost-btn account-mini-btn"
+                      onClick={openTransfer}
+                      disabled={accounts.length < 2 || !canTransferAccount}
+                    >
+                      Transfer
+                    </button>
                   </div>
                 </div>
 
-                <div className="account-actions">
+                <div className="account-sharing-row">
+                  <div>
+                    <span className="sharing-label">Your role</span>
+                    <RoleBadge role={accountRole} />
+                  </div>
                   <button
                     type="button"
                     className="ghost-btn account-mini-btn"
-                    onClick={() => openEdit(account.id)}
+                    onClick={() => openSharing(account.id)}
                   >
-                    Edit
+                    Share
                   </button>
-
-                  <button
-                    type="button"
-                    className="ghost-btn account-mini-btn"
-                    onClick={openTransfer}
-                    disabled={accounts.length < 2}
-                  >
-                    Transfer
-                  </button>
-
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
 
@@ -479,6 +604,87 @@ export default function AccountsPage() {
             {isTransferring ? 'Transferring...' : 'Transfer Funds'}
           </button>
         </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(sharingAccountId)}
+        title={sharingAccount ? `Sharing · ${sharingAccount.name}` : 'Sharing settings'}
+        onClose={closeSharing}
+      >
+        <div className="sharing-modal">
+          {sharingFeedback && (
+            <p className={`feedback ${sharingFeedback.intent === 'error' ? 'error' : ''}`} role="status">
+              {sharingFeedback.message}
+            </p>
+          )}
+          <div className="sharing-headline">
+            <p>
+              You are{' '}
+              <RoleBadge role={sharingRole} variant="inline" /> for this account.
+            </p>
+            {canManageSharing ? (
+              <p className="sharing-hint">Owners can invite and adjust member roles.</p>
+            ) : (
+              <p className="sharing-hint">Viewers can only observe the member list.</p>
+            )}
+          </div>
+
+          {sharingMembersLoading ? (
+            <p className="sharing-state">Loading members…</p>
+          ) : sharingMembersError ? (
+            <p className="sharing-state error">Unable to load members.</p>
+          ) : sharingMembers && sharingMembers.length > 0 ? (
+            <div className="sharing-members">
+              {sharingMembers.map((member) => (
+                <div key={member.userId} className="sharing-member-row">
+                  <div>
+                    <strong>{member.displayName || member.email}</strong>
+                    <p>{member.email}</p>
+                  </div>
+                  <div className="sharing-member-actions">
+                    <RoleBadge role={member.role} variant="inline" />
+                    {canManageSharing && !member.currentUser && (
+                      <select
+                        value={member.role}
+                        onChange={(event) => handleRoleChange(member.userId, event.target.value as AccountRole)}
+                      >
+                        <option value="OWNER">Owner</option>
+                        <option value="EDITOR">Editor</option>
+                        <option value="VIEWER">Viewer</option>
+                      </select>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="sharing-state">Only you have access to this account.</p>
+          )}
+
+          {canManageSharing && (
+            <form onSubmit={onInviteMember} className="form-stack share-invite-form">
+              <label>
+                Email
+                <input type="email" placeholder="user@example.com" {...registerInvite('email')} />
+                {inviteErrors.email && <span className="form-help">{inviteErrors.email.message}</span>}
+              </label>
+
+              <label>
+                Role
+                <select {...registerInvite('role')}>
+                  <option value="OWNER">Owner</option>
+                  <option value="EDITOR">Editor</option>
+                  <option value="VIEWER">Viewer</option>
+                </select>
+                {inviteErrors.role && <span className="form-help">{inviteErrors.role.message}</span>}
+              </label>
+
+              <button type="submit" disabled={isInviting}>
+                {isInviting ? 'Inviting…' : 'Send invite'}
+              </button>
+            </form>
+          )}
+        </div>
       </Modal>
     </section>
   );

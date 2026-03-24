@@ -3,6 +3,8 @@ package com.finance.tracker.controller;
 import com.finance.tracker.dto.dashboard.TrendPointDto;
 import com.finance.tracker.dto.reports.AccountBalanceReport;
 import com.finance.tracker.dto.reports.CategorySpendReport;
+import com.finance.tracker.dto.reports.NetWorthPointDto;
+import com.finance.tracker.dto.reports.ReportsTrendDto;
 import com.finance.tracker.dto.reports.ReportFilter;
 import com.finance.tracker.entity.Transaction;
 import com.finance.tracker.exception.BadRequestException;
@@ -62,6 +64,30 @@ public class ReportController {
     ) {
         ReportFilter filter = buildFilter(startDate, endDate, accountId, categoryId, transactionType);
         return ResponseEntity.ok(reportService.accountBalanceTrend(filter));
+    }
+
+    @GetMapping("/trends")
+    public ResponseEntity<ReportsTrendDto> trends(
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startDate,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endDate,
+        @RequestParam(required = false) Long accountId,
+        @RequestParam(required = false) Long categoryId,
+        @RequestParam(required = false) String transactionType
+    ) {
+        ReportFilter filter = buildFilter(startDate, endDate, accountId, categoryId, transactionType);
+        return ResponseEntity.ok(reportService.trends(filter));
+    }
+
+    @GetMapping("/net-worth")
+    public ResponseEntity<List<NetWorthPointDto>> netWorth(
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startDate,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endDate,
+        @RequestParam(required = false) Long accountId,
+        @RequestParam(required = false) Long categoryId,
+        @RequestParam(required = false) String transactionType
+    ) {
+        ReportFilter filter = buildFilter(startDate, endDate, accountId, categoryId, transactionType);
+        return ResponseEntity.ok(reportService.netWorthTrend(filter));
     }
 
     @GetMapping("/export/csv")

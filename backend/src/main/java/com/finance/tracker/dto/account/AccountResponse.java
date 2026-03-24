@@ -1,6 +1,7 @@
 package com.finance.tracker.dto.account;
 
 import com.finance.tracker.entity.Account;
+import com.finance.tracker.entity.AccountRole;
 import com.finance.tracker.entity.AccountType;
 
 import java.math.BigDecimal;
@@ -17,8 +18,9 @@ public class AccountResponse {
     private String institutionName;
     private String currency;
     private OffsetDateTime lastUpdatedAt;
+    private AccountRole currentUserRole;
 
-    public static AccountResponse from(Account account) {
+    public static AccountResponse from(Account account, AccountRole currentUserRole) {
         AccountResponse r = new AccountResponse();
         r.setId(account.getId());
         r.setUserId(account.getUserId());
@@ -29,6 +31,7 @@ public class AccountResponse {
         r.setInstitutionName(account.getInstitutionName());
         r.setCurrency(account.getCurrency());
         r.setLastUpdatedAt(account.getLastUpdatedAt());
+        r.setCurrentUserRole(currentUserRole);
         return r;
     }
 
@@ -102,5 +105,13 @@ public class AccountResponse {
 
     public void setLastUpdatedAt(OffsetDateTime lastUpdatedAt) {
         this.lastUpdatedAt = lastUpdatedAt;
+    }
+
+    public AccountRole getCurrentUserRole() {
+        return currentUserRole;
+    }
+
+    public void setCurrentUserRole(AccountRole currentUserRole) {
+        this.currentUserRole = currentUserRole;
     }
 }

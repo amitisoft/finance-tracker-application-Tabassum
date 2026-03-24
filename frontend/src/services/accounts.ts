@@ -1,6 +1,7 @@
 import { apiClient } from './api';
 import type {
   AccountDto,
+  AccountRole,
   CreateAccountPayload,
   TransferPayload,
   UpdateAccountPayload,
@@ -18,6 +19,7 @@ type AccountApiDto = {
   current_balance: number;
   institution_name?: string | null;
   last_updated_at: string;
+  current_user_role?: AccountRole;
 };
 
 const normalizeAccount = (account: AccountApiDto): AccountDto => ({
@@ -30,6 +32,7 @@ const normalizeAccount = (account: AccountApiDto): AccountDto => ({
   currentBalance: account.current_balance,
   institutionName: account.institution_name ?? undefined,
   lastUpdatedAt: account.last_updated_at,
+  currentUserRole: account.current_user_role ?? undefined,
 });
 
 export const accountsApi = {

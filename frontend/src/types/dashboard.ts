@@ -52,3 +52,43 @@ export type GoalProgress = {
 };
 
 export type DashboardRecentTransaction = TransactionDto;
+
+export type DailyProjection = {
+  date: string;
+  projectedIncome: number;
+  projectedExpense: number;
+  netChange: number;
+};
+
+export type SafeToSpendIndicator = {
+  amount: number;
+  level: 'healthy' | 'caution' | 'critical';
+  message: string;
+};
+
+export type RiskWarning = {
+  message: string;
+  severity: 'info' | 'warning' | 'critical';
+};
+
+export type CashFlowForecast = {
+  projectedEndOfMonthBalance: number;
+  projectedMonthlyNet: number;
+  dailyNetAverage: number;
+  dailyProjections: DailyProjection[];
+  safeToSpend: SafeToSpendIndicator;
+  riskWarnings: RiskWarning[];
+};
+
+export type HealthMetric = {
+  label: string;
+  detail: string;
+  value: number;
+  score: number;
+};
+
+export type FinancialHealthScore = {
+  score: number;
+  breakdown: HealthMetric[];
+  suggestions: string[];
+};

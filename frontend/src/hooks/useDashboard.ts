@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '../services/dashboard';
+import { forecastApi } from '../services/forecast';
 
 export const useDashboardSummary = () =>
   useQuery({
@@ -42,4 +43,18 @@ export const useDashboardGoalsSummary = () =>
   useQuery({
     queryKey: ['dashboard', 'goals-summary'],
     queryFn: dashboardApi.goalsSummary,
+  });
+
+export const useCashFlowForecast = () =>
+  useQuery({
+    queryKey: ['dashboard', 'forecast'],
+    queryFn: forecastApi.getForecast,
+    staleTime: 1000 * 60 * 2,
+  });
+
+export const useHealthScore = () =>
+  useQuery({
+    queryKey: ['dashboard', 'health'],
+    queryFn: dashboardApi.healthScore,
+    staleTime: 1000 * 60 * 2,
   });

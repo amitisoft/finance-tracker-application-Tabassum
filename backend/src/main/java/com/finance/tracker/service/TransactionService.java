@@ -6,13 +6,17 @@ import com.finance.tracker.dto.transaction.TransactionFilter;
 import com.finance.tracker.dto.transaction.TransactionPage;
 import com.finance.tracker.dto.transaction.UpdateTransactionRequest;
 import com.finance.tracker.entity.Account;
+import com.finance.tracker.entity.AccountMember;
+import com.finance.tracker.entity.AccountRole;
 import com.finance.tracker.entity.Category;
 import com.finance.tracker.entity.Transaction;
 import com.finance.tracker.entity.Transaction.TransactionType;
 import com.finance.tracker.entity.User;
 import com.finance.tracker.exception.BadRequestException;
 import com.finance.tracker.exception.ResourceNotFoundException;
+import com.finance.tracker.exception.UnauthorizedException;
 import com.finance.tracker.mapper.TransactionMapper;
+import com.finance.tracker.repository.AccountMemberRepository;
 import com.finance.tracker.repository.AccountRepository;
 import com.finance.tracker.repository.CategoryRepository;
 import com.finance.tracker.repository.TransactionRepository;
@@ -31,38 +35,48 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
+    private final AccountMemberRepository accountMemberRepository;
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final TransactionRuleEngine ruleEngine;
     private final EntityManager entityManager;
 
     @Transactional(readOnly = true)
     public TransactionPage listTransactions(TransactionFilter filter) {
         User user = currentUser();
+        List<Long> accessibleAccountIds = accessibleAccountIds(user);
+        int pageIndex = sanitizePage(filter.page());
+        int pageSize = sanitizeSize(filter.size());
+
+        if (accessibleAccountIds.isEmpty()) {
+            return new TransactionPage(List.of(), 0, pageIndex, pageSize);
+        }
+
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
         CriteriaQuery<Transaction> query = cb.createQuery(Transaction.class);
         Root<Transaction> root = query.from(Transaction.class);
-        List<Predicate> predicates = buildPredicates(cb, root, filter, user);
+        List<Predicate> predicates = buildPredicates(cb, root, filter, accessibleAccountIds);
 
         query.select(root);
         query.where(predicates.toArray(Predicate[]::new));
         query.orderBy(cb.desc(root.get("transactionDate")));
 
-        int pageIndex = sanitizePage(filter.page());
-        int pageSize = sanitizeSize(filter.size());
         TypedQuery<Transaction> typedQuery = entityManager.createQuery(query);
         typedQuery.setFirstResult(pageIndex * pageSize);
         typedQuery.setMaxResults(pageSize);
         List<Transaction> transactions = typedQuery.getResultList();
 
-        TypedQuery<Long> countQuery = entityManager.createQuery(createCountQuery(filter, user, cb));
+        TypedQuery<Long> countQuery = entityManager.createQuery(createCountQuery(filter, accessibleAccountIds, cb));
         long total = countQuery.getSingleResult();
 
         List<TransactionDto> items = transactions.stream().map(TransactionMapper::toDto).toList();
@@ -73,16 +87,16 @@ public class TransactionService {
     public TransactionDto getTransaction(Long id) {
         User user = currentUser();
         Transaction transaction = transactionRepository.findById(id)
-            .filter(tx -> tx.getUser().getId().equals(user.getId()))
             .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+        requireMembership(transaction.getAccount().getId(), user);
         return TransactionMapper.toDto(transaction);
     }
 
     @Transactional
     public TransactionDto createTransaction(CreateTransactionRequest request) {
         User user = currentUser();
-        Account account = accountRepository.findByIdAndUser(request.accountId(), user)
-            .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+        AccountMember originMembership = ensureEditorOrOwner(request.accountId(), user);
+        Account account = originMembership.getAccount();
         TransactionType type = resolveType(request.type());
         Category category = null;
         if (type != TransactionType.TRANSFER) {
@@ -97,8 +111,8 @@ public class TransactionService {
             if (request.transferAccountId() == null || request.transferAccountId().equals(account.getId())) {
                 throw new BadRequestException("Provide a different destination account");
             }
-            transferAccount = accountRepository.findByIdAndUser(request.transferAccountId(), user)
-                .orElseThrow(() -> new ResourceNotFoundException("Destination account not found"));
+            AccountMember transferMembership = ensureEditorOrOwner(request.transferAccountId(), user);
+            transferAccount = transferMembership.getAccount();
         }
 
         Transaction transaction = new Transaction();
@@ -115,6 +129,7 @@ public class TransactionService {
         transaction.setType(type);
         transaction.setCategory(category);
 
+        ruleEngine.applyRules(transaction);
         applyBalances(transaction);
         Transaction saved = transactionRepository.save(transaction);
         return TransactionMapper.toDto(saved);
@@ -124,13 +139,13 @@ public class TransactionService {
     public TransactionDto updateTransaction(Long id, UpdateTransactionRequest request) {
         User user = currentUser();
         Transaction existing = transactionRepository.findById(id)
-            .filter(tx -> tx.getUser().getId().equals(user.getId()))
             .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+        requireEditorOrOwner(existing.getAccount().getId(), user);
 
         revertBalances(existing);
 
-        Account account = accountRepository.findByIdAndUser(request.accountId(), user)
-            .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+        AccountMember newAccountMembership = ensureEditorOrOwner(request.accountId(), user);
+        Account account = newAccountMembership.getAccount();
         TransactionType type = resolveType(request.type());
         Category category = null;
         if (type != TransactionType.TRANSFER) {
@@ -145,8 +160,8 @@ public class TransactionService {
             if (request.transferAccountId() == null || request.transferAccountId().equals(account.getId())) {
                 throw new BadRequestException("Provide a different destination account");
             }
-            transferAccount = accountRepository.findByIdAndUser(request.transferAccountId(), user)
-                .orElseThrow(() -> new ResourceNotFoundException("Destination account not found"));
+            AccountMember transferMembership = ensureEditorOrOwner(request.transferAccountId(), user);
+            transferAccount = transferMembership.getAccount();
         }
 
         existing.setAccount(account);
@@ -161,6 +176,7 @@ public class TransactionService {
         existing.setTransactionDate(request.transactionDate());
         existing.setType(type);
 
+        ruleEngine.applyRules(existing);
         applyBalances(existing);
         Transaction updated = transactionRepository.save(existing);
         return TransactionMapper.toDto(updated);
@@ -170,8 +186,8 @@ public class TransactionService {
     public void deleteTransaction(Long id) {
         User user = currentUser();
         Transaction transaction = transactionRepository.findById(id)
-            .filter(tx -> tx.getUser().getId().equals(user.getId()))
             .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+        requireEditorOrOwner(transaction.getAccount().getId(), user);
         revertBalances(transaction);
         transactionRepository.delete(transaction);
     }
@@ -185,10 +201,14 @@ public class TransactionService {
             .orElseThrow(() -> new BadRequestException("User not found"));
     }
 
-    private List<Predicate> buildPredicates(CriteriaBuilder cb, Root<Transaction> root, TransactionFilter filter, User user) {
+    private List<Predicate> buildPredicates(CriteriaBuilder cb, Root<Transaction> root, TransactionFilter filter, List<Long> accessibleAccountIds) {
         List<Predicate> predicates = new ArrayList<>();
-        predicates.add(cb.equal(root.get("user"), user));
+        Set<Long> accessibleSet = new HashSet<>(accessibleAccountIds);
+        predicates.add(root.get("account").get("id").in(accessibleAccountIds));
         if (filter.accountId() != null) {
+            if (!accessibleSet.contains(filter.accountId())) {
+                throw new UnauthorizedException("You do not have access to this account");
+            }
             predicates.add(cb.equal(root.get("account").get("id"), filter.accountId()));
         }
         if (filter.categoryId() != null) {
@@ -219,10 +239,10 @@ public class TransactionService {
         return predicates;
     }
 
-    private CriteriaQuery<Long> createCountQuery(TransactionFilter filter, User user, CriteriaBuilder cb) {
+    private CriteriaQuery<Long> createCountQuery(TransactionFilter filter, List<Long> accessibleAccountIds, CriteriaBuilder cb) {
         CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
         Root<Transaction> root = countQuery.from(Transaction.class);
-        List<Predicate> countPredicates = buildPredicates(cb, root, filter, user);
+        List<Predicate> countPredicates = buildPredicates(cb, root, filter, accessibleAccountIds);
         countQuery.select(cb.count(root));
         countQuery.where(countPredicates.toArray(Predicate[]::new));
         return countQuery;
@@ -288,5 +308,26 @@ public class TransactionService {
             return null;
         }
         return String.join(",", tags);
+    }
+
+    private List<Long> accessibleAccountIds(User user) {
+        return accountMemberRepository.findAccountIdsByUserId(user.getId());
+    }
+
+    private AccountMember requireMembership(Long accountId, User user) {
+        return accountMemberRepository.findByAccountIdAndUserId(accountId, user.getId())
+            .orElseThrow(() -> new UnauthorizedException("You do not have access to this account"));
+    }
+
+    private AccountMember ensureEditorOrOwner(Long accountId, User user) {
+        AccountMember membership = requireMembership(accountId, user);
+        if (membership.getRole() != AccountRole.OWNER && membership.getRole() != AccountRole.EDITOR) {
+            throw new UnauthorizedException("Editor or owner role is required for this action");
+        }
+        return membership;
+    }
+
+    private void requireEditorOrOwner(Long accountId, User user) {
+        ensureEditorOrOwner(accountId, user);
     }
 }

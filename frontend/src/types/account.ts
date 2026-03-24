@@ -1,3 +1,15 @@
+export type AccountRole = 'OWNER' | 'EDITOR' | 'VIEWER';
+
+export type AccountMemberDto = {
+  userId: number;
+  email: string;
+  displayName: string;
+  role: AccountRole;
+  invitedById?: number;
+  invitedByName?: string;
+  currentUser?: boolean;
+};
+
 export type AccountDto = {
   id: number;
   userId: number;
@@ -8,6 +20,7 @@ export type AccountDto = {
   currentBalance: number;
   institutionName?: string;
   lastUpdatedAt: string;
+  currentUserRole?: AccountRole;
 };
 
 export type CreateAccountPayload = {
@@ -30,6 +43,15 @@ export type TransferPayload = {
   fromAccountId: number;
   toAccountId: number;
   amount: number;
+};
+
+export type InviteAccountMemberPayload = {
+  email: string;
+  role: AccountRole;
+};
+
+export type UpdateAccountMemberRolePayload = {
+  role: AccountRole;
 };
 
 export type Account = AccountDto;

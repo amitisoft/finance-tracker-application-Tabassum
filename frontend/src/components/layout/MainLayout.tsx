@@ -17,6 +17,8 @@ const navItems = [
   { path: '/goals', label: 'Goals' },
   { path: '/recurring', label: 'Recurring' },
   { path: '/reports', label: 'Reports' },
+  { path: '/insights', label: 'Insights' },
+  { path: '/rules', label: 'Rules' },
   { path: '/settings', label: 'Settings' },
 ];
 
@@ -29,6 +31,8 @@ const pageTitles: Record<string, string> = {
   '/goals': 'Goals',
   '/recurring': 'Recurring',
   '/reports': 'Reports',
+  '/insights': 'Insights',
+  '/rules': 'Rules',
   '/settings': 'Settings',
   '/transactions/new': 'Add Transaction',
   '/accounts/new': 'Add Account',
