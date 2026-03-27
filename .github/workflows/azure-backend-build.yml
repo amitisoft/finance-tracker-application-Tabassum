@@ -32,7 +32,7 @@ jobs:
         with:
           app-name: finance-api-123
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: backend/target/app.jar
+          package: backend/target
 
   frontend:
     name: Build frontend bundle
