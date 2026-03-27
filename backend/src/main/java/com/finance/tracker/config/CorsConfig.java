@@ -1,29 +1,19 @@
 package com.finance.tracker.config;
 
-import com.fasterxml.jackson.databind.Module;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
-public class CorsConfig {
-    @Bean
-    public CorsFilter corsFilter() {
-        var source = new UrlBasedCorsConfigurationSource();
-        var config = new CorsConfiguration();
-        config.addAllowedMethod(CorsConfiguration.ALL);
-        config.addAllowedHeader(CorsConfiguration.ALL);
-        config.addAllowedOriginPattern("*");
-        config.setAllowCredentials(true);
-        source.registerCorsConfiguration("/**", config);
-        return new CorsFilter(source);
-    }
+public class CorsConfig implements WebMvcConfigurer {
+    private static final String FRONTEND_ORIGIN = "https://kind-pond-0ecf58a00.4.azurestaticapps.net";
 
-    @Bean
-    public Module javaTimeModule() {
-        return new JavaTimeModule();
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/api/**")
+                .allowedOrigins(FRONTEND_ORIGIN)
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(false);
     }
 }
