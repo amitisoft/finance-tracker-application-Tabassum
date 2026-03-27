@@ -1,11 +1,10 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { authService } from './auth';
 import { getResolvedAccessToken, useAuthStore } from '../store/authStore';
-
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080/api';
+import { API_BASE_URL } from '../constants/api';
 
 export const apiClient = axios.create({
-  baseURL,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
@@ -35,10 +34,10 @@ apiClient.interceptors.response.use(
         await authService.refreshTokens();
         const { accessToken } = useAuthStore.getState();
         const resolvedAccessToken = accessToken ?? getResolvedAccessToken();
-        if (resolvedAccessToken && originalConfig.headers) {
-          originalConfig.headers.Authorization = `Bearer ${resolvedAccessToken}`;
-        }
-        return apiClient(originalConfig);
+          if (resolvedAccessToken && originalConfig.headers) {
+            originalConfig.headers.Authorization = `Bearer ${resolvedAccessToken}`;
+          }
+          return apiClient(originalConfig);
       } catch (refreshError) {
         useAuthStore.getState().clearAuth();
         return Promise.reject(refreshError);
