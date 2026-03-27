@@ -27,12 +27,18 @@ jobs:
         run: |
           cp backend/target/finance-tracker-backend-0.1.0-SNAPSHOT.jar backend/target/app.jar
 
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
+      - name: Login to Azure
+        uses: azure/login@v1
         with:
-          app-name: finance-api-123
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: backend/target
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy app.jar via CLI
+        run: |
+          az webapp deploy \
+            --name finance-api-123 \
+            --resource-group <YOUR_RESOURCE_GROUP> \
+            --src-path backend/target/app.jar \
+            --type jar
 
   frontend:
     name: Build frontend bundle
