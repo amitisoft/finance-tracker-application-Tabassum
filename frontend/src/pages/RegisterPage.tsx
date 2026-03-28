@@ -56,12 +56,19 @@ export default function RegisterPage() {
       }
       navigate('/dashboard', { replace: true });
     } catch (error) {
+      console.log('REGISTER PAGE ERROR', error);
+      console.log('REGISTER PAGE ERROR RESPONSE', axios.isAxiosError(error) ? error.response?.data : undefined);
+      console.log('REGISTER PAGE ERROR STATUS', axios.isAxiosError(error) ? error.response?.status : undefined);
       if (isDev) {
         console.debug('[register] caught error', error);
       }
       if (axios.isAxiosError(error) && error.response?.status === 409) {
         setEmailConflict(true);
         setStatus('An account with this email already exists. Please sign in instead.');
+        return;
+      }
+      if (axios.isAxiosError(error) && !error.response) {
+        setStatus('Unable to reach the server. Please check your connection and try again.');
         return;
       }
       setStatus(getErrorMessage(error, 'Could not register right now. Please try again.'));

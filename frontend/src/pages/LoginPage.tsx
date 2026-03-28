@@ -72,14 +72,27 @@ export default function LoginPage() {
       if (isDev) {
         console.debug('[login] caught error', error);
       }
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
+    if (axios.isAxiosError(error)) {
+      console.log('LOGIN PAGE ERROR', error);
+      console.log('LOGIN PAGE ERROR RESPONSE', error.response?.data);
+      console.log('LOGIN PAGE ERROR STATUS', error.response?.status);
+      if (!error.response) {
+        setStatus('Unable to reach the server. Please check your connection and try again.');
+        return;
+      }
+      if (error.response.status === 401) {
         setInvalidCredentials(true);
         setStatus('Invalid email or password. Please check your credentials and try again.');
         return;
       }
-      setStatus(getErrorMessage(error, 'Invalid credentials or server error.'));
+      setStatus(
+        getErrorMessage(error, 'Authentication failed. Please verify your credentials and try again.')
+      );
+      return;
     }
-  };
+    setStatus('An unexpected error occurred. Please try again.');
+  }
+};
 
   if (resolvedAccessToken) {
     return <Navigate to="/dashboard" replace />;

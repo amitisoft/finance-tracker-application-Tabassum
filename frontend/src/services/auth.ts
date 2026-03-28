@@ -79,10 +79,13 @@ export const authService = {
         email,
         password: payload.password,
       });
+      console.log('REGISTER RESPONSE', res);
       logAuthResult('register', email, res.status);
-      debugResponse('[auth] register axios response', res);
       return persistAuthResponse(res.data);
     } catch (error) {
+      console.log('REGISTER ERROR', error);
+      console.log('REGISTER ERROR RESPONSE', axios.isAxiosError(error) ? error.response?.data : undefined);
+      console.log('REGISTER ERROR STATUS', axios.isAxiosError(error) ? error.response?.status : undefined);
       debugResponse('[auth] register axios error', error);
       if (axios.isAxiosError(error)) {
         logAuthResult('register', email, error.response?.status ?? 0);
@@ -98,10 +101,13 @@ export const authService = {
         ...payload,
         email,
       });
+      console.log('LOGIN RESPONSE', res);
       logAuthResult('login', email, res.status);
-      debugResponse('[auth] login axios response', res);
       return persistAuthResponse(res.data);
     } catch (error) {
+      console.log('LOGIN ERROR', error);
+      console.log('LOGIN ERROR RESPONSE', axios.isAxiosError(error) ? error.response?.data : undefined);
+      console.log('LOGIN ERROR STATUS', axios.isAxiosError(error) ? error.response?.status : undefined);
       debugResponse('[auth] login axios error', error);
       if (axios.isAxiosError(error)) {
         logAuthResult('login', email, error.response?.status ?? 0);
