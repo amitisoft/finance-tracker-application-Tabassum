@@ -1,2 +1,2 @@
 export const API_BASE_URL =
-  'https://finance-api-123-b2f6fffxgbf3e4dp.centralindia-01.azurewebsites.net/api';
+  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080/api';
