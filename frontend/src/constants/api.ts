@@ -1,2 +1,4 @@
 export const API_BASE_URL =
   'https://finance-api-123-b2f6fffqgbf3e4dp.centralindia-01.azurewebsites.net/api';
+
+console.log('DEBUG API_BASE_URL =', API_BASE_URL);

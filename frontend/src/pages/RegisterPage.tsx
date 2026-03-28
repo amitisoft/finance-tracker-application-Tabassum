@@ -7,6 +7,7 @@ import axios from 'axios';
 import { authService } from '../services/auth';
 import { getErrorMessage } from '../utils/errors';
 import './AuthForm.css';
+import { API_BASE_URL } from '../constants/api';
 
 const registerSchema = z
   .object({
@@ -44,8 +45,9 @@ export default function RegisterPage() {
   const onSubmit = async (values: RegisterForm) => {
     setStatus('');
     setEmailConflict(false);
-    try {
-      await authService.register({
+      try {
+        console.log('DEBUG REGISTER URL =', `${API_BASE_URL}/auth/register`);
+        await authService.register({
         displayName: values.displayName,
         email: values.email,
         password: values.password,
@@ -86,6 +88,10 @@ export default function RegisterPage() {
             )}
           </div>
         )}
+
+        <div style={{ fontSize: '12px', color: 'red' }}>
+          DEBUG API: {API_BASE_URL}
+        </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
           <label htmlFor="register-display-name">
