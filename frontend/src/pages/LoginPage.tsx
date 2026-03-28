@@ -25,6 +25,7 @@ export default function LoginPage() {
   const [invalidCredentials, setInvalidCredentials] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const isDev = import.meta.env.DEV;
   const accessToken = useAuthStore((state) => state.accessToken);
   const resolvedAccessToken = accessToken ?? getResolvedAccessToken();
   const locationState = (location.state as LoginLocationState | null) ?? null;
@@ -63,8 +64,14 @@ export default function LoginPage() {
     setInvalidCredentials(false);
     try {
       await authService.login(values);
+      if (isDev) {
+        console.debug('[login] successful submit', values);
+      }
       navigate('/dashboard', { replace: true });
     } catch (error) {
+      if (isDev) {
+        console.debug('[login] caught error', error);
+      }
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         setInvalidCredentials(true);
         setStatus('Invalid email or password. Please check your credentials and try again.');

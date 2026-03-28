@@ -7,7 +7,6 @@ import axios from 'axios';
 import { authService } from '../services/auth';
 import { getErrorMessage } from '../utils/errors';
 import './AuthForm.css';
-import { API_BASE_URL } from '../constants/api';
 
 const registerSchema = z
   .object({
@@ -33,6 +32,7 @@ export default function RegisterPage() {
   const [status, setStatus] = useState<string>('');
   const [emailConflict, setEmailConflict] = useState(false);
   const navigate = useNavigate();
+  const isDev = import.meta.env.DEV;
   const {
     register,
     handleSubmit,
@@ -45,20 +45,20 @@ export default function RegisterPage() {
   const onSubmit = async (values: RegisterForm) => {
     setStatus('');
     setEmailConflict(false);
-      try {
-        await authService.register({
+    try {
+      const tokens = await authService.register({
         displayName: values.displayName,
         email: values.email,
         password: values.password,
       });
-      navigate('/login', {
-        replace: true,
-        state: {
-          registeredEmail: values.email.trim().toLowerCase(),
-          registrationSuccess: 'Account created successfully. Please sign in to continue.',
-        },
-      });
+      if (isDev) {
+        console.debug('[register] success tokens', tokens);
+      }
+      navigate('/dashboard', { replace: true });
     } catch (error) {
+      if (isDev) {
+        console.debug('[register] caught error', error);
+      }
       if (axios.isAxiosError(error) && error.response?.status === 409) {
         setEmailConflict(true);
         setStatus('An account with this email already exists. Please sign in instead.');

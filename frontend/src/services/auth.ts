@@ -32,7 +32,7 @@ const normalizeResponse = (response: AuthServerResponse): AuthTokens => ({
 
 const persistAuthResponse = (response: AuthServerResponse) => {
   if (isDev) {
-    console.debug('[auth] raw login response', response);
+    console.debug('[auth] raw response', response);
   }
   const normalized = normalizeResponse(response);
   if (isDev) {
@@ -41,7 +41,7 @@ const persistAuthResponse = (response: AuthServerResponse) => {
   useAuthStore.getState().setTokens(normalized);
   if (isDev) {
     console.debug(
-      '[auth] localStorage finance-tracker-auth',
+      '[auth] localStorage snapshot',
       window.localStorage.getItem('finance-tracker-auth')
     );
   }
@@ -59,7 +59,14 @@ const logAuthResult = (action: 'login' | 'register', email: string, status: numb
   if (!isDev) {
     return;
   }
-  console.debug(`[auth] ${action} response`, { email, status });
+  console.debug(`[auth] ${action} response status`, { email, status });
+};
+
+const debugResponse = (label: string, payload: unknown) => {
+  if (!isDev) {
+    return;
+  }
+  console.debug(label, payload);
 };
 
 export const authService = {
@@ -73,8 +80,10 @@ export const authService = {
         password: payload.password,
       });
       logAuthResult('register', email, res.status);
-      return normalizeResponse(res.data);
+      debugResponse('[auth] register axios response', res);
+      return persistAuthResponse(res.data);
     } catch (error) {
+      debugResponse('[auth] register axios error', error);
       if (axios.isAxiosError(error)) {
         logAuthResult('register', email, error.response?.status ?? 0);
       }
@@ -90,8 +99,10 @@ export const authService = {
         email,
       });
       logAuthResult('login', email, res.status);
+      debugResponse('[auth] login axios response', res);
       return persistAuthResponse(res.data);
     } catch (error) {
+      debugResponse('[auth] login axios error', error);
       if (axios.isAxiosError(error)) {
         logAuthResult('login', email, error.response?.status ?? 0);
       }
