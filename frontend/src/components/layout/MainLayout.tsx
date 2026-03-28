@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { authService } from '../../services/auth';
 import { useAccountsQuery } from '../../hooks/useAccounts';
@@ -6,7 +6,6 @@ import { useGoals } from '../../hooks/useGoals';
 import { useRecurring } from '../../hooks/useRecurring';
 import { useOnboardingStore } from '../../store/onboardingStore';
 import { useUIStore } from '../../store/uiStore';
-import { Profile, profileService } from '../../services/profile';
 import './layout.css';
 
 const navItems = [
@@ -74,9 +73,6 @@ export default function MainLayout() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>(loadReadNotificationIds);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [profileInfo, setProfileInfo] = useState<Profile | null>(null);
-  const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   const accountsQuery = useAccountsQuery();
   const goalsQuery = useGoals();
@@ -156,43 +152,11 @@ export default function MainLayout() {
 
   useEffect(() => {
     setNotificationsOpen(false);
-    setProfileMenuOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
     window.localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(readNotificationIds));
   }, [readNotificationIds]);
-
-  useEffect(() => {
-    let active = true;
-    profileService
-      .getProfile()
-      .then((data) => {
-        if (!active) {
-          return;
-        }
-        setProfileInfo(data);
-      })
-      .catch(() => {
-        // no-op
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!profileMenuOpen) {
-      return undefined;
-    }
-    const handleClickOutside = (event: MouseEvent) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
-        setProfileMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [profileMenuOpen]);
 
   const markNotificationsRead = (ids: string[]) => {
     if (ids.length === 0) {
@@ -210,7 +174,6 @@ export default function MainLayout() {
   const handleLogout = async () => {
     await authService.logout().catch(() => undefined);
     resetOnboarding();
-    setProfileMenuOpen(false);
     navigate('/login');
   };
 
@@ -330,59 +293,10 @@ export default function MainLayout() {
                 </div>
               )}
             </div>
-            <div ref={profileMenuRef} className="topbar-profile">
-              <button
-                type="button"
-                className="topbar-user"
-                aria-haspopup="menu"
-                aria-expanded={profileMenuOpen}
-                onClick={() => setProfileMenuOpen((prev) => !prev)}
-              >
-                <span className="topbar-avatar" aria-hidden="true">
-                  {(profileInfo?.displayName || 'FT')
-                    .split(' ')
-                    .map((segment) => segment[0])
-                    .join('')
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </span>
-                <span className="topbar-user-copy">
-                  <span className="topbar-user-name">
-                    {profileInfo?.displayName ?? 'Your profile'}
-                  </span>
-                  <small>{profileInfo?.email ?? 'Manage account'}</small>
-                </span>
-              </button>
-              {profileMenuOpen && (
-                <div className="topbar-profile-menu" role="menu">
-                  {profileInfo && (
-                    <div className="topbar-profile-menu-info">
-                      <strong>{profileInfo.displayName}</strong>
-                      <span>{profileInfo.email}</span>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    className="topbar-profile-menu-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setProfileMenuOpen(false);
-                      navigate('/settings#profile-section');
-                    }}
-                  >
-                    Update profile
-                  </button>
-                  <button
-                    type="button"
-                    className="topbar-profile-menu-item"
-                    role="menuitem"
-                    onClick={handleLogout}
-                  >
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
+
+            <button type="button" className="topbar-logout-btn" onClick={handleLogout}>
+              Logout
+            </button>
           </div>
         </header>
 
