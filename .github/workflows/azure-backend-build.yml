@@ -36,7 +36,7 @@ jobs:
         run: |
           az webapp deploy \
             --resource-group finance-tracker-rg \
-            --name finance-api-123 \
+            --name finance-api-123-b2f6fffqgbf3e4dp \
             --src-path backend/target/app.jar \
             --type jar
 
