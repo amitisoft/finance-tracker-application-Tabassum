@@ -46,7 +46,6 @@ export default function RegisterPage() {
     setStatus('');
     setEmailConflict(false);
       try {
-        console.log('DEBUG REGISTER URL =', `${API_BASE_URL}/auth/register`);
         await authService.register({
         displayName: values.displayName,
         email: values.email,
@@ -88,10 +87,6 @@ export default function RegisterPage() {
             )}
           </div>
         )}
-
-        <div style={{ fontSize: '12px', color: 'red' }}>
-          DEBUG API: {API_BASE_URL}
-        </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="auth-form">
           <label htmlFor="register-display-name">
