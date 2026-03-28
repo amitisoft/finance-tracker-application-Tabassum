@@ -178,7 +178,6 @@ export default function MainLayout() {
   const handleLogout = async () => {
     await authService.logout().catch(() => undefined);
     resetOnboarding();
-    setProfileMenuOpen(false);
     navigate('/login');
   };
 
