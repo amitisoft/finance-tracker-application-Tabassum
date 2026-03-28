@@ -554,3 +554,4 @@
     right: -12px;
   }
 }
+\n.topbar-profile-menu-info {\n  padding: 12px 18px;\n  border-bottom: 1px solid rgba(15, 23, 42, 0.08);\n  display: flex;\n  flex-direction: column;\n  gap: 3px;\n}\n\n.topbar-profile-menu-info strong {\n  font-size: 0.95rem;\n  color: var(--text);\n}\n\n.topbar-profile-menu-info span {\n  font-size: 0.8rem;\n  color: var(--text-muted);\n}\n
