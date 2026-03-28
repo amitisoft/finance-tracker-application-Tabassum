@@ -4,7 +4,7 @@ spring:
 
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/financeTracker
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/financeTracker}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:root123}
 
@@ -33,6 +33,9 @@ spring:
           auth: true
           starttls:
             enable: true
+
+server:
+  port: ${PORT:8080}
 
 app:
   auth:
