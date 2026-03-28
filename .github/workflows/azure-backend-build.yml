@@ -35,11 +35,7 @@ jobs:
       - name: Deploy via Azure CLI
         run: |
           az webapp deploy \
-<<<<<<< HEAD
             --resource-group finance-tracker-rg \
-=======
-            --resource-group <YOUR_RESOURCE_GROUP> \
->>>>>>> 72a8b33 (Use Azure CLI for backend deploy)
             --name finance-api-123 \
             --src-path backend/target/app.jar \
             --type jar
