@@ -6,7 +6,7 @@ import { useGoals } from '../../hooks/useGoals';
 import { useRecurring } from '../../hooks/useRecurring';
 import { useOnboardingStore } from '../../store/onboardingStore';
 import { useUIStore } from '../../store/uiStore';
-import { profileService, type Profile } from '../../services/profile';
+import { Profile, profileService } from '../../services/profile';
 import './layout.css';
 
 const navItems = [
@@ -167,7 +167,7 @@ export default function MainLayout() {
     let active = true;
     profileService
       .getProfile()
-      .then((data: Profile) => {
+      .then((data) => {
         if (!active) {
           return;
         }
@@ -341,7 +341,7 @@ export default function MainLayout() {
                 <span className="topbar-avatar" aria-hidden="true">
                   {(profileInfo?.displayName || 'FT')
                     .split(' ')
-                    .map((segment: string) => segment[0] ?? '')
+                    .map((segment) => segment[0])
                     .join('')
                     .slice(0, 2)
                     .toUpperCase()}
