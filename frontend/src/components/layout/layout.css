@@ -97,6 +97,21 @@
   color: #f1e9e9;
 }
 
+.finance-app-root.theme-dark .topbar-profile-menu {
+  background: rgba(21, 23, 61, 0.95);
+  border-color: rgba(233, 145, 201, 0.25);
+}
+
+.finance-app-root.theme-dark .topbar-profile-menu-item {
+  color: #f3f4f4;
+}
+
+.finance-app-root.theme-dark .topbar-profile-menu-item:hover,
+.finance-app-root.theme-dark .topbar-profile-menu-item:focus-visible {
+  background: rgba(233, 145, 201, 0.12);
+  color: #f3f4f4;
+}
+
 .app-sidebar {
   display: flex;
   flex-direction: column;
@@ -203,6 +218,64 @@
   position: relative;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.topbar-profile {
+  position: relative;
+}
+
+.topbar-profile-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 12px);
+  min-width: 220px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+
+.topbar-profile-menu-info {
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.topbar-profile-menu-info strong {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.topbar-profile-menu-info span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.topbar-profile-menu-item {
+  background: transparent;
+  border: none;
+  padding: 10px 18px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--text-soft);
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.topbar-profile-menu-item + .topbar-profile-menu-item {
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.topbar-profile-menu-item:hover,
+.topbar-profile-menu-item:focus-visible {
+  background: var(--surface-soft);
+  color: var(--text);
 }
 
 .topbar-logo {
