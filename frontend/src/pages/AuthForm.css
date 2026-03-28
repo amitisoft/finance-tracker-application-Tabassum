@@ -6,6 +6,7 @@
   padding: 32px 24px;
   background: linear-gradient(180deg, #eef3fb 0%, #f8f6ff 45%, #ffffff 100%);
   box-sizing: border-box;
+  width: 100%;
 }
 
 .auth-card {
@@ -17,6 +18,7 @@
   box-shadow: 0 35px 65px rgba(31, 50, 107, 0.14);
   position: relative;
   overflow: hidden;
+  margin: 0 auto;
 }
 
 .auth-card-header {
