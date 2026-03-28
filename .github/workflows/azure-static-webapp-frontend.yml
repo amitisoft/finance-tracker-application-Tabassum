@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Deploy Frontend
 
+    env:
+      VITE_API_BASE_URL: https://finance-api-123-b2f6fffqgbf3e4dp.centralindia-01.azurewebsites.net/api
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
