@@ -11,19 +11,31 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Deploy Frontend
 
-    env:
-      VITE_API_BASE_URL: https://finance-api-123-b2f6fffqgbf3e4dp.centralindia-01.azurewebsites.net/api
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm install
+        working-directory: frontend
+
+      - name: Build frontend bundle
+        run: npm run build
+        working-directory: frontend
+
       - name: Deploy to Azure Static Web App
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_KIND_POND_0ECF58A00 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: upload
           app_location: "frontend"
           api_location: ""
-          output_location: "dist"
+          output_location: "frontend/dist"
